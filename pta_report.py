@@ -2,7 +2,7 @@
 # coding:utf-8
 
 """
-Created on 2016年11月23日
+Created on 2016年12月8日
 
 @author: hzcaojianglong
 """
@@ -31,10 +31,8 @@ def log_file_backup(process_log_dir, archive_log_dir):
     :param archive_log_dir: 历史日志目录
     :return:
     """
-    # 归档日志目录，如果不存在则创建
     if not os.path.exists(archive_log_dir):
         os.makedirs(archive_log_dir)
-    # 过程日志目录，如果存在则move到归档日志目录
     time_now = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
     if os.path.exists(process_log_dir):
         base_name = os.path.basename(process_log_dir)
@@ -49,10 +47,8 @@ def log_file_collect(log_dir_src, process_log_dir):
     :param process_log_dir: 当次运行日志的目标目录
     :return:
     """
-    # 汇总日志目录，如果不存在则创建
     if not os.path.exists(process_log_dir):
         os.makedirs(process_log_dir)
-    # 将脚本目录的日志move到汇总日志目录
     grinder_log_file_list = [log_dir_src + os.sep + temp for temp in os.listdir(log_dir_src) if
                              temp.endswith(".log")]
     if not grinder_log_file_list:
@@ -64,7 +60,7 @@ def log_file_collect(log_dir_src, process_log_dir):
 
 def get_testing_data(grinder_log_dir):
     """
-    从Grinder运行日志目录的日志文件提取性能测试数据（支持多文件提取）
+    从Grinder运行日志目录的日志文件提取性能测试数据
     :param grinder_log_dir:当次日志目录
     :return:
     """
@@ -73,24 +69,21 @@ def get_testing_data(grinder_log_dir):
         sys.exit(3)
     else:
         ginrder_log_dir = os.path.abspath(grinder_log_dir)
-    # main日志信息提取
     grinder_main_log_file_list = [grinder_log_dir + os.sep + temp for temp in os.listdir(grinder_log_dir) if
                                   temp.endswith("-0.log")]
     if not grinder_main_log_file_list:
         logging.error("No grinder_main_log file! [%s]" % grinder_main_log_file_list)
         sys.exit(2)
-    testing_data_list = []  # testing_data为dict结构，存放vuser_number、tps、mrt等信息的键值对
+    testing_data_list = []
     grinder_main_log_file_list.sort()
     for index in range(0, len(grinder_main_log_file_list)):
         grinder_main_log_file = grinder_main_log_file_list[index]
         key_list = ["testcase_name", "vuser_number", "tps", "mrt", "test_number", "success_number", "failed_number",
                     "failed_rate"]
         result_dict = dict().fromkeys(key_list, "-")
-        # 测试用例名
         hostname_length = len(socket.gethostname())
         testcase_name = os.path.basename(grinder_main_log_file)[0:-(hostname_length + 7)]
         result_dict["testcase_name"] = testcase_name
-        # 并发用户数
         pattern = re.compile(r'thread-(.*?): starting, will')
         result_dict["vuser_number"] = "-"
         vuser_list = []
@@ -101,8 +94,7 @@ def get_testing_data(grinder_log_dir):
         if vuser_list:
             vuser_number = str(len(vuser_list))
             result_dict["vuser_number"] = vuser_number
-        # TPS、MRT、成功次数、失败次数，读取过程日志文件内容，抓取结果数据信息
-        pattern = re.compile(r'Test\s+\d+\s+(.*?)\s+(.*?)\s+(.*?)\s+\d+.?\d*\s+(.*?)\s+.*?"')
+        pattern = re.compile(r'Totals\s+(.*?)\s+(.*?)\s+(.*?)\s+\d+.?\d*\s+(.*?)\s+.*?')
         for line in open(grinder_main_log_file):
             if not pattern.search(line):
                 continue
@@ -111,7 +103,6 @@ def get_testing_data(grinder_log_dir):
             result_dict["failed_number"] = result[1]
             result_dict["mrt"] = result[2]
             result_dict["tps"] = result[3]
-        # 测试次数
         success_number = result_dict.get("success_number")
         failed_number = result_dict.get("failed_number")
         result_dict["test_number"] = "-"
@@ -120,21 +111,18 @@ def get_testing_data(grinder_log_dir):
         else:
             test_number = str(int(success_number) + int(failed_number))
             result_dict["test_number"] = test_number
-        # 失败率
         result_dict["fail_rate"] = "-"
         if test_number == "-" or test_number == "0":
             logging.warn("Failed to calculate the value! [%s]" % grinder_main_log_file)
         else:
             fail_rate = str(int(failed_number) / float(test_number) * 100)[0:5] + "%"
             result_dict["fail_rate"] = fail_rate
-        # data日志数据提取
         result_dict["time_line_list"] = []
         result_dict["mrt_list"] = []
         result_dict["tps_list"] = []
         dir_name = os.path.dirname(grinder_main_log_file)
         grinder_data_log_file = dir_name + os.sep + testcase_name + "-" + socket.gethostname() + "-0-data.log"
         if os.path.exists(grinder_data_log_file):
-            # 计算mrt_list和tps_list
             pattern = re.compile(r"\d+, \d+, \d+, (.*?), (.*?), \d+")
             result_list = []
             for line in open(grinder_data_log_file):
@@ -144,47 +132,47 @@ def get_testing_data(grinder_log_dir):
                 result_list.append(result)
             column_4_list = []
             column_5_list = []
-            result_list.sort()
-            for index in range(len(result_list)):
-                column_4 = int((int(result_list[index][0]) - int(result_list[0][0])) / 1000)
-                column_5 = float(result_list[index][1])
-                column_4_list.append(column_4)
-                column_5_list.append(column_5)
             time_line_list = []
             mrt_list = []
             tps_list = []
-            temp_time = column_4_list[0]
-            temp_cost = column_5_list[0]
-            cnt = 1
-            for i in range(1, len(column_4_list)):
-                if temp_time == column_4_list[i]:
-                    cnt += 1
-                    temp_cost += column_5_list[i]
-                else:
-                    mrt = temp_cost / cnt
-                    tps = int(vuser_number) / mrt * 1000
-                    time_line_list.append(column_4_list[i - 1])
-                    mrt_list.append(mrt)
-                    tps_list.append(tps)
-                    temp_time = column_4_list[i]
-                    temp_cost = column_5_list[i]
-                    cnt = 1
-            mrt = temp_cost / cnt
-            tps = int(vuser_number) / mrt * 1000
-            time_line_list.append(column_4_list[i])
-            mrt_list.append(mrt)
-            tps_list.append(tps)
+            if result_list:
+                result_list.sort()
+                for index in range(len(result_list)):
+                    column_4 = int((int(result_list[index][0]) - int(result_list[0][0])) / 1000)
+                    column_5 = float(result_list[index][1])
+                    column_4_list.append(column_4)
+                    column_5_list.append(column_5)
+                temp_time = column_4_list[0]
+                temp_cost = column_5_list[0]
+                cnt = 1
+                for i in range(1, len(column_4_list)):
+                    if temp_time == column_4_list[i]:
+                        cnt += 1
+                        temp_cost += column_5_list[i]
+                    else:
+                        mrt = temp_cost / cnt
+                        tps = int(vuser_number) / mrt * 1000
+                        time_line_list.append(column_4_list[i - 1])
+                        mrt_list.append(mrt)
+                        tps_list.append(tps)
+                        temp_time = column_4_list[i]
+                        temp_cost = column_5_list[i]
+                        cnt = 1
+                mrt = temp_cost / cnt
+                tps = int(vuser_number) / mrt * 1000
+                time_line_list.append(column_4_list[i])
+                mrt_list.append(mrt)
+                tps_list.append(tps)
             result_dict["time_line_list"] = time_line_list
             result_dict["mrt_list"] = mrt_list
             result_dict["tps_list"] = tps_list
-        # 将结果字典追加到列表中
         testing_data_list.append(result_dict)
     return testing_data_list
 
 
 def generate_html_report(testing_data_list, grinder_log_dir, html_report_file_name):
     """
-    从Grinder运行日志目录的日志文件提取性能测试数据（支持多文件提取），生成html格式报告
+    从Grinder运行日志目录的日志文件提取性能测试数据，生成html格式报告
     :param grinder_log_dir: 当次日志目录
     :param html_report_file_name: 生成的html报告的文件名
     :return:
@@ -207,15 +195,13 @@ def generate_html_report(testing_data_list, grinder_log_dir, html_report_file_na
     html_page += '<body><table border="1"><h3>性能测试结果如下：</h3><p/>%s</table>' % td_content
     time_now = time.strftime("%Y-%m-%d %X", time.localtime(time.time()))
     html_page += '</p><p>报告生成时间：%s</p></body></html>' % time_now
-    # print html_page
-    # 写入结果日志文件
     with open(grinder_log_dir + os.sep + html_report_file_name, 'w') as result_file:
         result_file.write(html_page)
 
 
 def draw_chart(testing_data_list, grinder_log_dir):
     """
-    从Grinder运行日志目录的日志文件提取性能测试详细过程数据（支持多文件提取），并绘制图表
+    从Grinder运行日志目录的日志文件提取性能测试详细过程数据，并绘制图表
     :param grinder_log_dir:当次日志目录
     :return:
     """
@@ -274,7 +260,7 @@ def draw_chart(testing_data_list, grinder_log_dir):
 
 
 def test1():
-    grinder_log_dir = "log\process_log"
+    grinder_log_dir = "log/process_log"
     testing_data_list = get_testing_data(grinder_log_dir)
     html_report_file_name = "performance_testing.html"
     generate_html_report(testing_data_list, grinder_log_dir, html_report_file_name)
