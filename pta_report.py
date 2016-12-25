@@ -2,7 +2,7 @@
 # coding:utf-8
 
 """
-Created on 2016年12月25日
+Created on 2016年12月8日
 
 @author: hzcaojianglong
 """
@@ -110,20 +110,10 @@ def _get_testing_result_main(grinder_main_log_file):
 
 def _get_testing_result_data(grinder_data_log_file):
     # 构造字典保存结果信息
-    key_list = ["time_line_list", "mrt_list", "tps_list"]
+    key_list = ["rt_50", "rt_90", "rt_99", "time_line_list", "mrt_list", "tps_list"]
     result_dict = dict().fromkeys(key_list, "-")
     # 判断文件是否存在
     if not os.path.exists(grinder_data_log_file):
-        return result_dict
-    # 将匹配内容保存到列表
-    pattern = re.compile(r"\d+, \d+, \d+, (.*?), (.*?), \d+")
-    result_list = []
-    for line in open(grinder_data_log_file):
-        if not pattern.search(line):
-            continue
-        result = pattern.findall(line)[0]
-        result_list.append(result)
-    if not result_list:
         return result_dict
     # 虚拟用户数
     pattern = re.compile(r"(.*?), \d+, \d+, \d+, \d+, \d+")
@@ -133,42 +123,68 @@ def _get_testing_result_data(grinder_data_log_file):
         if not pattern.search(line):
             continue
         vuser_list_tmp.append(pattern.findall(line))
-    if vuser_list_tmp:
-        for vuser in vuser_list_tmp:
-            if vuser not in vuser_list:
-                vuser_list.append(vuser)
-        vuser_number = str(len(vuser_list))
-    # 分离时间列表、响应时间列表、TPS列表
-    column_4_list = []
-    column_5_list = []
+
+    # 开始时间列表、响应时间列表
+    pattern = re.compile(r"(.*?), \d+, \d+, (.*?), (.*?), \d+")
+    result_list = []
+    for line in open(grinder_data_log_file):
+        if not pattern.search(line):
+            continue
+        result = pattern.findall(line)[0]
+        result_list.append(result)
+    # 如果data文件提取到有效信息，则分离数据到各个列表
+    if not result_list:
+        return result_dict
+    vuser_tmp_list = []
+    start_time_list = []
+    test_time_list = []
+    # result_list.sort()
+    result_list = sorted(result_list, key=lambda x: x[1])
+    for index in range(len(result_list)):
+        vuser_tmp = result_list[index][0]
+        vuser_tmp_list.append(vuser_tmp)
+        start_time = int((int(result_list[index][1]) - int(result_list[0][1])) / 1000)
+        start_time_list.append(start_time)
+        test_time = float(result_list[index][2])
+        test_time_list.append(test_time)
+    # 计算并发数
+    vuser_list = []
+    for vuser in vuser_tmp_list:
+        if vuser not in vuser_list:
+            vuser_list.append(vuser)
+    vuser_number = str(len(vuser_list))
+    # 计算50%和90%的响应时间
+    test_time_list_sorted = sorted(test_time_list)
+    rt_list_length = len(test_time_list_sorted)
+    index_50 = int(math.ceil(rt_list_length / 2))
+    result_dict["rt_50"] = test_time_list_sorted[index_50 - 1]
+    index_90 = int(math.ceil(rt_list_length * 9 / 10))
+    result_dict["rt_90"] = test_time_list_sorted[index_90 - 1]
+    index_99 = int(math.ceil(rt_list_length * 99 / 100))
+    result_dict["rt_99"] = test_time_list_sorted[index_99 - 1]
+    # 计算时间线和MRT、TPS
     time_line_list = []
     mrt_list = []
     tps_list = []
-    result_list.sort()
-    for index in range(len(result_list)):
-        column_4 = int((int(result_list[index][0]) - int(result_list[0][0])) / 1000)
-        column_5 = float(result_list[index][1])
-        column_4_list.append(column_4)
-        column_5_list.append(column_5)
-    temp_time = column_4_list[0]
-    temp_cost = column_5_list[0]
+    temp_time = start_time_list[0]
+    temp_cost = test_time_list[0]
     cnt = 1
-    for i in range(1, len(column_4_list)):
-        if temp_time == column_4_list[i]:
+    for i in range(1, len(start_time_list)):
+        if temp_time == start_time_list[i]:
             cnt += 1
-            temp_cost += column_5_list[i]
+            temp_cost += test_time_list[i]
         else:
             mrt = temp_cost / cnt
             tps = int(vuser_number) / mrt * 1000
-            time_line_list.append(column_4_list[i - 1])
+            time_line_list.append(start_time_list[i - 1])
             mrt_list.append(mrt)
             tps_list.append(tps)
-            temp_time = column_4_list[i]
-            temp_cost = column_5_list[i]
+            temp_time = start_time_list[i]
+            temp_cost = test_time_list[i]
             cnt = 1
     mrt = temp_cost / cnt
     tps = int(vuser_number) / mrt * 1000
-    time_line_list.append(column_4_list[i])
+    time_line_list.append(start_time_list[len(start_time_list) - 1])
     mrt_list.append(mrt)
     tps_list.append(tps)
     result_dict["time_line_list"] = time_line_list
@@ -216,9 +232,10 @@ def generate_html_report(result_dict_list, grinder_log_dir, html_report_file_nam
     :param html_report_file_name: 生成的html报告的文件名
     :return:
     """
-    td_content = "<tr>" + "<td><b>测试用例名称</b></td>" + "<td><b>并发用户数</b></td>" + \
-                 "<td><b>TPS(每秒处理事务数)</b></td>" + "<td><b>MRT(平均响应时间(ms))</b></td>" + "<td><b>测试次数</b></td>" + \
-                 "<td><b>成功次数</b></td>" + "<td><b>失败次数</b></td>" + "<td><b>失败率</b></td>" + "</tr>"
+    td_content = "<tr>" + "<td><b>测试用例名称</b></td>" + "<td><b>并发数</b></td>" + "<td><b>TPS</b></td>" + \
+                 "<td><b>MRT(ms))</b></td>" + "<td><b>50%RT(ms)</b></td>" + "<td><b>90%RT(ms)</b></td>" + \
+                 "<td><b>99%RT(ms)</b></td>" + "<td><b>测试次数</b></td>" + "<td><b>成功次数</b></td>" + \
+                 "<td><b>失败次数</b></td>" + "<td><b>失败率</b></td>" + "</tr>"
     for result_dict in result_dict_list:
         try:
             td_content += "<tr>"
@@ -226,6 +243,9 @@ def generate_html_report(result_dict_list, grinder_log_dir, html_report_file_nam
             td_content += "<td>%s</td>" % result_dict["vuser_number"]
             td_content += "<td>%s</td>" % result_dict["tps"]
             td_content += "<td>%s</td>" % result_dict["mrt"]
+            td_content += "<td>%s</td>" % result_dict["rt_50"]
+            td_content += "<td>%s</td>" % result_dict["rt_90"]
+            td_content += "<td>%s</td>" % result_dict["rt_99"]
             td_content += "<td>%s</td>" % result_dict["test_number"]
             td_content += "<td>%s</td>" % result_dict["success_number"]
             td_content += "<td>%s</td>" % result_dict["failed_number"]
