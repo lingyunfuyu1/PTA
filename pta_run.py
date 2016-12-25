@@ -11,7 +11,7 @@ import os
 
 from pta_core import PTACore
 from pta_mail import mail
-from pta_report import log_file_backup, log_file_collect, get_testing_data, generate_html_report, draw_chart
+from pta_report import log_file_backup, log_file_collect, get_testing_result, generate_html_report, draw_chart
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,7 +60,7 @@ def work2(task_list, process_log_dir, archive_log_dir, html_report_file_name):
             log_dir_src_list.append(log_dir_src)
             log_file_collect(log_dir_src, process_log_dir)
     # 提取测试数据
-    testing_data_list = get_testing_data(process_log_dir)
+    testing_data_list = get_testing_result(process_log_dir)
     # 生成测试报告
     generate_html_report(testing_data_list, process_log_dir, html_report_file_name)
     # 绘制Time-TPS/RT曲线图
@@ -84,13 +84,8 @@ def work3(receiver_list, subject, process_log_dir, html_report_file_name):
 def main():
     # 测试任务配置
     task_list = [
-        r"scripts\demo\helloworld.py|100",
-        r"scripts\java\call_java_method_test.py|100",
-        r"scripts\fund\homePage.py|100",
-        r"scripts\fund\getLcProductList.py|100",
-        r"scripts\fund\getLcProductDetail.py|100",
-        r"scripts\fund\getAllNotice.py|100",
-        r"scripts\fund\getLcAsset.py|100",
+        r"scripts\demo\helloworld.py|10",
+        r"scripts\java\call_java_method_test.py|50",
     ]
     # 日志目录配置
     log_dir = "log"
@@ -101,7 +96,7 @@ def main():
     # 测试报告文件名
     html_report_file_name = "performance_testing.html"
     # 收件人列表
-    receiver_list = ["caojl01@gmail.com", "hzcaojianglong@corp.netease.com"]
+    receiver_list = ["caojl01@gmail.com"]
     # 邮件主题
     subject = u"性能测试自动化执行报告"
     # 三步工作流程
