@@ -2,7 +2,7 @@
 # coding:utf-8
 
 """
-Created on 2016年12月8日
+Created on 2016年12月25日
 
 @author: hzcaojianglong
 """
@@ -58,7 +58,126 @@ def log_file_collect(log_dir_src, process_log_dir):
         shutil.move(grinder_log_file, process_log_dir + os.sep + grinder_log_base_name)
 
 
-def get_testing_data(grinder_log_dir):
+def _get_testing_result_main(grinder_main_log_file):
+    # 构造字典保存结果信息
+    key_list = ["testcase_name", "vuser_number", "tps", "mrt", "test_number", "success_number", "failed_number",
+                "failed_rate"]
+    result_dict = dict().fromkeys(key_list, "-")
+    # 测试用例名称。这里用文件名，不用脚本里的测试名称，主要是为了避免脚本忘记改测试名称，出现重复。文件名也有重复的可能，怎么保证唯一呢？
+    hostname_length = len(socket.gethostname())
+    testcase_name = os.path.basename(grinder_main_log_file)[0:-(hostname_length + 7)]
+    result_dict["testcase_name"] = testcase_name
+    # 判断文件是否存在
+    if not os.path.exists(grinder_main_log_file):
+        return result_dict
+    # 虚拟用户数
+    pattern = re.compile(r'thread-(.*?): starting, will')
+    vuser_list = []
+    for line in open(grinder_main_log_file):
+        if not pattern.search(line):
+            continue
+        vuser_list.append(pattern.findall(line))
+    if vuser_list:
+        vuser_number = str(len(vuser_list))
+        result_dict["vuser_number"] = vuser_number
+    # 成功次数、失败次数、平均响应时间、TPS
+    pattern = re.compile(r'Totals\s+(.*?)\s+(.*?)\s+(.*?)\s+\d+.?\d*\s+(.*?)\s+.*?')
+    for line in open(grinder_main_log_file):
+        if not pattern.search(line):
+            continue
+        result = pattern.findall(line)[0]
+        result_dict["success_number"] = result[0]
+        result_dict["failed_number"] = result[1]
+        result_dict["mrt"] = result[2]
+        result_dict["tps"] = result[3]
+    # 计算测试次数
+    success_number = result_dict.get("success_number")
+    failed_number = result_dict.get("failed_number")
+    if success_number == "-" or failed_number == "-":
+        logging.warn("Failed to calculate the value! [%s]" % grinder_main_log_file)
+    else:
+        test_number = str(int(success_number) + int(failed_number))
+        result_dict["test_number"] = test_number
+    # 计算失败率
+    test_number = result_dict.get("test_number")
+    if test_number == "-" or test_number == "0":
+        logging.warn("Failed to calculate the value! [%s]" % grinder_main_log_file)
+    else:
+        failed_rate = str(int(failed_number) / float(test_number) * 100)[0:5] + "%"
+        result_dict["failed_rate"] = failed_rate
+    return result_dict
+
+
+def _get_testing_result_data(grinder_data_log_file):
+    # 构造字典保存结果信息
+    key_list = ["time_line_list", "mrt_list", "tps_list"]
+    result_dict = dict().fromkeys(key_list, "-")
+    # 判断文件是否存在
+    if not os.path.exists(grinder_data_log_file):
+        return result_dict
+    # 将匹配内容保存到列表
+    pattern = re.compile(r"\d+, \d+, \d+, (.*?), (.*?), \d+")
+    result_list = []
+    for line in open(grinder_data_log_file):
+        if not pattern.search(line):
+            continue
+        result = pattern.findall(line)[0]
+        result_list.append(result)
+    if not result_list:
+        return result_dict
+    # 虚拟用户数
+    pattern = re.compile(r"(.*?), \d+, \d+, \d+, \d+, \d+")
+    vuser_list_tmp = []
+    vuser_list = []
+    for line in open(grinder_data_log_file):
+        if not pattern.search(line):
+            continue
+        vuser_list_tmp.append(pattern.findall(line))
+    if vuser_list_tmp:
+        for vuser in vuser_list_tmp:
+            if vuser not in vuser_list:
+                vuser_list.append(vuser)
+        vuser_number = str(len(vuser_list))
+    # 分离时间列表、响应时间列表、TPS列表
+    column_4_list = []
+    column_5_list = []
+    time_line_list = []
+    mrt_list = []
+    tps_list = []
+    result_list.sort()
+    for index in range(len(result_list)):
+        column_4 = int((int(result_list[index][0]) - int(result_list[0][0])) / 1000)
+        column_5 = float(result_list[index][1])
+        column_4_list.append(column_4)
+        column_5_list.append(column_5)
+    temp_time = column_4_list[0]
+    temp_cost = column_5_list[0]
+    cnt = 1
+    for i in range(1, len(column_4_list)):
+        if temp_time == column_4_list[i]:
+            cnt += 1
+            temp_cost += column_5_list[i]
+        else:
+            mrt = temp_cost / cnt
+            tps = int(vuser_number) / mrt * 1000
+            time_line_list.append(column_4_list[i - 1])
+            mrt_list.append(mrt)
+            tps_list.append(tps)
+            temp_time = column_4_list[i]
+            temp_cost = column_5_list[i]
+            cnt = 1
+    mrt = temp_cost / cnt
+    tps = int(vuser_number) / mrt * 1000
+    time_line_list.append(column_4_list[i])
+    mrt_list.append(mrt)
+    tps_list.append(tps)
+    result_dict["time_line_list"] = time_line_list
+    result_dict["mrt_list"] = mrt_list
+    result_dict["tps_list"] = tps_list
+    return result_dict
+
+
+def get_testing_result(grinder_log_dir):
     """
     从Grinder运行日志目录的日志文件提取性能测试数据
     :param grinder_log_dir:当次日志目录
@@ -68,111 +187,31 @@ def get_testing_data(grinder_log_dir):
         logging.error("No such directory! [%s]" % grinder_log_dir)
         sys.exit(3)
     else:
-        ginrder_log_dir = os.path.abspath(grinder_log_dir)
+        grinder_log_dir = os.path.abspath(grinder_log_dir)
     grinder_main_log_file_list = [grinder_log_dir + os.sep + temp for temp in os.listdir(grinder_log_dir) if
                                   temp.endswith("-0.log")]
     if not grinder_main_log_file_list:
         logging.error("No grinder_main_log file! [%s]" % grinder_main_log_file_list)
         sys.exit(2)
-    testing_data_list = []
+    result_dict_list = []
     grinder_main_log_file_list.sort()
     for index in range(0, len(grinder_main_log_file_list)):
         grinder_main_log_file = grinder_main_log_file_list[index]
-        key_list = ["testcase_name", "vuser_number", "tps", "mrt", "test_number", "success_number", "failed_number",
-                    "failed_rate"]
-        result_dict = dict().fromkeys(key_list, "-")
-        hostname_length = len(socket.gethostname())
-        testcase_name = os.path.basename(grinder_main_log_file)[0:-(hostname_length + 7)]
-        result_dict["testcase_name"] = testcase_name
-        pattern = re.compile(r'thread-(.*?): starting, will')
-        result_dict["vuser_number"] = "-"
-        vuser_list = []
-        for line in open(grinder_main_log_file):
-            if not pattern.search(line):
-                continue
-            vuser_list.append(pattern.findall(line))
-        if vuser_list:
-            vuser_number = str(len(vuser_list))
-            result_dict["vuser_number"] = vuser_number
-        pattern = re.compile(r'Totals\s+(.*?)\s+(.*?)\s+(.*?)\s+\d+.?\d*\s+(.*?)\s+.*?')
-        for line in open(grinder_main_log_file):
-            if not pattern.search(line):
-                continue
-            result = pattern.findall(line)[0]
-            result_dict["success_number"] = result[0]
-            result_dict["failed_number"] = result[1]
-            result_dict["mrt"] = result[2]
-            result_dict["tps"] = result[3]
-        success_number = result_dict.get("success_number")
-        failed_number = result_dict.get("failed_number")
-        result_dict["test_number"] = "-"
-        if success_number == "-" or failed_number == "-":
-            logging.warn("Failed to calculate the value! [%s]" % grinder_main_log_file)
-        else:
-            test_number = str(int(success_number) + int(failed_number))
-            result_dict["test_number"] = test_number
-        result_dict["fail_rate"] = "-"
-        if test_number == "-" or test_number == "0":
-            logging.warn("Failed to calculate the value! [%s]" % grinder_main_log_file)
-        else:
-            fail_rate = str(int(failed_number) / float(test_number) * 100)[0:5] + "%"
-            result_dict["fail_rate"] = fail_rate
-        result_dict["time_line_list"] = []
-        result_dict["mrt_list"] = []
-        result_dict["tps_list"] = []
+        result_dict_main = _get_testing_result_main(grinder_main_log_file)
+        testcase_name = result_dict_main.get("testcase_name")
         dir_name = os.path.dirname(grinder_main_log_file)
         grinder_data_log_file = dir_name + os.sep + testcase_name + "-" + socket.gethostname() + "-0-data.log"
-        if os.path.exists(grinder_data_log_file):
-            pattern = re.compile(r"\d+, \d+, \d+, (.*?), (.*?), \d+")
-            result_list = []
-            for line in open(grinder_data_log_file):
-                if not pattern.search(line):
-                    continue
-                result = pattern.findall(line)[0]
-                result_list.append(result)
-            column_4_list = []
-            column_5_list = []
-            time_line_list = []
-            mrt_list = []
-            tps_list = []
-            if result_list:
-                result_list.sort()
-                for index in range(len(result_list)):
-                    column_4 = int((int(result_list[index][0]) - int(result_list[0][0])) / 1000)
-                    column_5 = float(result_list[index][1])
-                    column_4_list.append(column_4)
-                    column_5_list.append(column_5)
-                temp_time = column_4_list[0]
-                temp_cost = column_5_list[0]
-                cnt = 1
-                for i in range(1, len(column_4_list)):
-                    if temp_time == column_4_list[i]:
-                        cnt += 1
-                        temp_cost += column_5_list[i]
-                    else:
-                        mrt = temp_cost / cnt
-                        tps = int(vuser_number) / mrt * 1000
-                        time_line_list.append(column_4_list[i - 1])
-                        mrt_list.append(mrt)
-                        tps_list.append(tps)
-                        temp_time = column_4_list[i]
-                        temp_cost = column_5_list[i]
-                        cnt = 1
-                mrt = temp_cost / cnt
-                tps = int(vuser_number) / mrt * 1000
-                time_line_list.append(column_4_list[i])
-                mrt_list.append(mrt)
-                tps_list.append(tps)
-            result_dict["time_line_list"] = time_line_list
-            result_dict["mrt_list"] = mrt_list
-            result_dict["tps_list"] = tps_list
-        testing_data_list.append(result_dict)
-    return testing_data_list
+        result_dict_data = _get_testing_result_data(grinder_data_log_file)
+        result_dict = result_dict_main.copy()
+        result_dict.update(result_dict_data)
+        result_dict_list.append(result_dict)
+    return result_dict_list
 
 
-def generate_html_report(testing_data_list, grinder_log_dir, html_report_file_name):
+def generate_html_report(result_dict_list, grinder_log_dir, html_report_file_name):
     """
     从Grinder运行日志目录的日志文件提取性能测试数据，生成html格式报告
+    :param result_dict_list:
     :param grinder_log_dir: 当次日志目录
     :param html_report_file_name: 生成的html报告的文件名
     :return:
@@ -180,17 +219,20 @@ def generate_html_report(testing_data_list, grinder_log_dir, html_report_file_na
     td_content = "<tr>" + "<td><b>测试用例名称</b></td>" + "<td><b>并发用户数</b></td>" + \
                  "<td><b>TPS(每秒处理事务数)</b></td>" + "<td><b>MRT(平均响应时间(ms))</b></td>" + "<td><b>测试次数</b></td>" + \
                  "<td><b>成功次数</b></td>" + "<td><b>失败次数</b></td>" + "<td><b>失败率</b></td>" + "</tr>"
-    for testing_data in testing_data_list:
-        td_content += "<tr>"
-        td_content += "<td><b>%s</b></td>" % testing_data["testcase_name"]
-        td_content += "<td>%s</td>" % testing_data["vuser_number"]
-        td_content += "<td>%s</td>" % testing_data["tps"]
-        td_content += "<td>%s</td>" % testing_data["mrt"]
-        td_content += "<td>%s</td>" % testing_data["test_number"]
-        td_content += "<td>%s</td>" % testing_data["success_number"]
-        td_content += "<td>%s</td>" % testing_data["failed_number"]
-        td_content += "<td>%s</td>" % testing_data["fail_rate"]
-        td_content += "</tr>"
+    for result_dict in result_dict_list:
+        try:
+            td_content += "<tr>"
+            td_content += "<td><b>%s</b></td>" % result_dict["testcase_name"]
+            td_content += "<td>%s</td>" % result_dict["vuser_number"]
+            td_content += "<td>%s</td>" % result_dict["tps"]
+            td_content += "<td>%s</td>" % result_dict["mrt"]
+            td_content += "<td>%s</td>" % result_dict["test_number"]
+            td_content += "<td>%s</td>" % result_dict["success_number"]
+            td_content += "<td>%s</td>" % result_dict["failed_number"]
+            td_content += "<td>%s</td>" % result_dict["failed_rate"]
+            td_content += "</tr>"
+        except Exception, e:
+            logging.exception("Exception occurred when generating html report!")
     html_page = '<html><head><meta http-equiv="Content-Type" content="text/html";charset="utf-8"></head>'
     html_page += '<body><table border="1"><h3>性能测试结果如下：</h3><p/>%s</table>' % td_content
     time_now = time.strftime("%Y-%m-%d %X", time.localtime(time.time()))
@@ -199,31 +241,36 @@ def generate_html_report(testing_data_list, grinder_log_dir, html_report_file_na
         result_file.write(html_page)
 
 
-def draw_chart(testing_data_list, grinder_log_dir):
+def draw_chart(result_dict_list, grinder_log_dir):
     """
     从Grinder运行日志目录的日志文件提取性能测试详细过程数据，并绘制图表
+    :param result_dict_list:
     :param grinder_log_dir:当次日志目录
     :return:
     """
     if not os.path.exists(grinder_log_dir):
         logging.error("No such directory! [%s]" % grinder_log_dir)
         sys.exit(3)
-    for testing_data in testing_data_list:
+    for result_dict in result_dict_list:
         try:
-            testcase_name = testing_data.get("testcase_name")
+            if result_dict.get("time_line_list") == "-" or result_dict.get("mrt_list") == "-" or result_dict.get(
+                    "tps_list") == "-" or result_dict.get("mrt") == "-" or result_dict.get("tps") == "-":
+                logging.error("time_line_list or mrt_list or tps_list or mrt or tps is/are None!")
+                continue
+            testcase_name = result_dict.get("testcase_name")
             figure = pyplot.figure()
             ax1 = figure.add_subplot(111)
-            pyplot.plot(testing_data.get("time_line_list"), testing_data.get("mrt_list"), 'r')
+            pyplot.plot(result_dict.get("time_line_list"), result_dict.get("mrt_list"), 'r')
             ax2 = ax1.twinx()
-            pyplot.plot(testing_data.get("time_line_list"), testing_data.get("tps_list"), 'g')
+            pyplot.plot(result_dict.get("time_line_list"), result_dict.get("tps_list"), 'g')
             ax1.set_xlabel("Time Since Starting(in s)")
             ax1.set_ylabel("RT (Response Time in ms)")
             ax2.set_ylabel("TPS (Transactions Per Second)")
 
-            mrt = math.ceil(float(testing_data.get("mrt")))
-            tps = math.ceil(float(testing_data.get("tps")))
-            max_mrt = math.ceil(int(max(testing_data.get("mrt_list"))))
-            max_tps = math.ceil(int(max(testing_data.get("tps_list"))))
+            mrt = math.ceil(float(result_dict.get("mrt")))
+            tps = math.ceil(float(result_dict.get("tps")))
+            max_mrt = math.ceil(int(max(result_dict.get("mrt_list"))))
+            max_tps = math.ceil(int(max(result_dict.get("tps_list"))))
             y_mrt = int(max(2.0 * mrt, max_mrt))
             y_tps = int(max(2.0 * tps, max_tps))
             if y_mrt / 1000 > 0:
@@ -256,15 +303,15 @@ def draw_chart(testing_data_list, grinder_log_dir):
             pyplot.savefig(grinder_log_dir + os.sep + testcase_name + ".png")
             pyplot.cla()
         except Exception, e:
-            logging.exception("Exception occurred when drawing a chart!")
+            logging.exception("Exception occurred when drawing chart!")
 
 
 def test1():
     grinder_log_dir = "log/process_log"
-    testing_data_list = get_testing_data(grinder_log_dir)
+    result_dict_list = get_testing_result(grinder_log_dir)
     html_report_file_name = "performance_testing.html"
-    generate_html_report(testing_data_list, grinder_log_dir, html_report_file_name)
-    draw_chart(testing_data_list, grinder_log_dir)
+    generate_html_report(result_dict_list, grinder_log_dir, html_report_file_name)
+    draw_chart(result_dict_list, grinder_log_dir)
 
 
 if __name__ == '__main__':
