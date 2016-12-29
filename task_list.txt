@@ -1,0 +1,10 @@
+###########################################
+# FORMATTING: SCRIPT|THREADS|DURATION|RUNS
+# SCRIPT:
+# THREADS: The number of worker threads each worker process should start.
+# DURATION: The maximum length of time in seconds that each worker process should run for. 
+# RUNS: The number of runs each worker process will perform. This is usually set to 0, meaning "will run forever".
+# TIPS: DURATION can be specified in conjunction with RUNS, in which case the worker processes will terminate if either the DURATION time or the number of RUNS is exceeded.
+###########################################
+scripts/demo/helloworld.py|10|30|0
+scripts/java/call_java_method_test.py|10|0|100

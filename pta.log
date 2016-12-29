@@ -1,0 +1,12 @@
+2016-12-29 18:51:17 [INFO] [pta_core.py(114): _update_grinder_properties_file] PID-2272 Task: --------------D:\Downloads\PTA\scripts\demo\helloworld.py--------------
+2016-12-29 18:51:17 [INFO] [pta_core.py(116): _update_grinder_properties_file] PID-2272 
+grinder_threads = 10
+grinder_duration = 30(s)
+grinder_runs = 0
+2016-12-29 18:51:52 [INFO] [pta_core.py(202): perform] PID-2272 The testing for helloworld is completed.
+2016-12-29 18:51:52 [INFO] [pta_core.py(114): _update_grinder_properties_file] PID-2272 Task: --------------D:\Downloads\PTA\scripts\java\call_java_method_test.py--------------
+2016-12-29 18:51:52 [INFO] [pta_core.py(116): _update_grinder_properties_file] PID-2272 
+grinder_threads = 10
+grinder_duration = 0(s)
+grinder_runs = 100
+2016-12-29 18:52:07 [INFO] [pta_core.py(202): perform] PID-2272 The testing for call_java_method_test is completed.

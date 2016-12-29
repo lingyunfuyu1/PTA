@@ -16,18 +16,20 @@ import shutil
 
 
 class PTACore(object):
-    def __init__(self, java_path, grinder_home, grinder_properties_file):
+    def __init__(self, java_path, grinder_home, grinder_properties_file, process_log_dir):
         """
         构造方法，主要是初始化传入性能测试执行依赖的内容，如java、Grinder等
         :param java_path: 如"/usr/bin/java"、"D:\Program Files\Java\jdk1.7.0_79\bin\java\exe"，如果包含在环境变量PATH中，可直接使用"java"
         :param grinder_home: Grinder的家目录，如"/home/hzcaojianglong/grinder-3.11"，"C:\grinder-3.11"
         :param grinder_properties_file: grinder.properties文件，如"/tmp/PTA/grinder.properties"、"D:\PTA\grinder.properties"
+        :param process_log_dir: PTA执行测试生成的日志保存目录，如"/tmp/PTA/log/process_log"、"D:\PTA\log\process_log"
         """
         self.java_path = java_path.strip()
         self.grinder_home = grinder_home.strip()
         self.grinder_properties_file = grinder_properties_file.strip()
+        self.process_log_dir = process_log_dir
 
-    def self_check(self):
+    def _check_and_prepare(self):
         """
         对各个实例变量进行检查，判断是否可用，所需依赖是否满足
         :return:
@@ -56,18 +58,23 @@ class PTACore(object):
             sys.exit(2)
         else:
             self.grinder_home = os.path.abspath(self.grinder_home)
-        # 检查grinder_properties_file是否存在
-        if not os.path.exists(self.grinder_properties_file):
-            logging.error("No such file! [%s]" % self.grinder_properties_file)
-            sys.exit(3)
-        else:
-            self.grinder_properties_file = os.path.abspath(self.grinder_properties_file)
+        # grinder_properties_file需要转换为绝对路径
+        self.grinder_properties_file = os.path.abspath(self.grinder_properties_file)
+        # process_log_dir需要转换为绝对路径
+        self.process_log_dir = os.path.abspath(self.process_log_dir)
+        logging.debug("The PTA properties file is set to [%s]" % self.process_log_dir)
+        if not os.path.exists(self.process_log_dir):
+            os.makedirs(self.process_log_dir)
+            logging.debug("The PTA log directory is set to [%s]" % self.process_log_dir)
+            # logging.info("No such directory! Automatically created. [%s]" % self.process_log_dir)
 
-    def _update_grinder_properties_file(self, script_file, vuser_number):
+    def _update_grinder_properties_file(self, script_file, grinder_threads, grinder_duration, grinder_runs):
         """
         更新grinder.properties文件，动态调整本次测试使用的脚本和并发数
         :param script_file: 脚本文件，如"/tmp/PTA/scripts/demo/hello_world.py"、"D:\PTA\scripts\demo\hello_world.py"
-        :param vuser_number: 并发数，正整数，不超过1000（保护客户机安全起见）
+        :param grinder_threads: 并发数，正整数，不超过1000（保护客户机安全起见）
+        :param grinder_duration: 每个测试执行时长，单位为秒
+        :param grinder_runs: 每个线程执行次数
         :return:
         """
         # 检查脚本是否存在
@@ -77,45 +84,61 @@ class PTACore(object):
             sys.exit(4)
         else:
             script_file = os.path.abspath(script_file)
-        # 检查并发数是否合理
-        if not isinstance(vuser_number, int) and not isinstance(vuser_number, str):
-            logging.error("Not a valid string or integer! [%s]" % vuser_number)
-            sys.exit(4)
-        if isinstance(vuser_number, str):
-            vuser_number = vuser_number.strip()
-            if not vuser_number.isdigit():
-                logging.error("It's not a positive integer! [%s]" % vuser_number)
-                sys.exit(4)
-        if int(vuser_number) <= 0 or int(vuser_number) > 1000:
-            logging.error("The value of vuser_number should be 0<vuser_number<=1000! [%d]" % int(vuser_number))
-            sys.exit(4)
-        # 修改grinder.properties
-        script_line = re.compile(r'grinder.scr(.*?)\n')
-        script_new = "ipt = " + script_file.replace(os.sep, "/")
-        vuser_number_line = re.compile(r'[^G]grinder.thre(.*?)\n')
-        vuser_number_new = "ads = " + str(vuser_number)
-        property_update_dict = {script_line: script_new, vuser_number_line: vuser_number_new}
-        content = open(self.grinder_properties_file, 'r').read()
-        for pattern, value_new in property_update_dict.items():
-            if not pattern.search(content):
-                logging.error("No such property_line in grinder.properties! [%s]" % pattern)
-                sys.exit(5)
-            value_old = pattern.findall(content)[0]
-            logging.info("The old value is %s" % value_old)
-            logging.info("The new value is %s" % value_new)
-            content = content.replace(value_old, value_new)
-        with open(self.grinder_properties_file, 'w') as result_file:
-            result_file.write(content)
+        # 检查属性值是否合理
+        for value in [grinder_threads, grinder_duration, grinder_runs]:
+            if not isinstance(value, int) and not isinstance(value, str):
+                logging.error("Not a valid string or integer! [%s]" % value)
+                sys.exit(1)
+            if isinstance(value, str):
+                value = value.strip()
+                if not value.isdigit():
+                    logging.error("It's not a positive integer! [%s]" % value)
+                    sys.exit(1)
+            if int(value) < 0:
+                logging.error(
+                    "The value should not be less than 0! [%s]" % value)
+                sys.exit(1)
+        if int(grinder_threads) == 0:
+            logging.error(
+                "The value of grinder_threads should be 0! [%d]" % int(grinder_threads))
+            sys.exit(1)
+        if int(grinder_threads) > 1000:
+            logging.error(
+                "The value of grinder_threads should be <= 1000! [%d]" % int(grinder_threads))
+            sys.exit(1)
+        if int(grinder_duration) == 0 and int(grinder_runs) == 0:
+            logging.error(
+                "The values of grinder_duration and grinder_runs should not be 0 simultaneously! [%d]" % int(
+                    grinder_threads))
+            sys.exit(1)
+        logging.info("Task: --------------%s--------------" % script_file)
+        logging.info("\ngrinder_threads = %s\ngrinder_duration = %s(s)\ngrinder_runs = %s" % (
+            grinder_threads, grinder_duration, grinder_runs))
+        # 生成grinder.properties
+        result_file = open(self.grinder_properties_file, 'w')
+        result_file.write("grinder.useConsole = false\n")
+        result_file.write("grinder.logDirectory = %s\n" % self.process_log_dir.replace(os.sep, "/"))
+        result_file.write("grinder.numberOfOldLogs = 1\n")
+        result_file.write("grinder.script = %s\n" % script_file.replace(os.sep, "/"))
+        result_file.write("grinder.processes = 1\n")
+        result_file.write("grinder.threads = %s\n" % grinder_threads)
+        result_file.write("grinder.duration = %s\n" % str(int(grinder_duration) * 1000))
+        result_file.write("grinder.runs = %s\n" % grinder_runs)
+        result_file.close()
 
-    def perform(self, script_file, vuser_number, lib_dir=""):
+    def perform(self, script_file, grinder_threads=1, grinder_duration=60, grinder_runs=0, lib_dir="lib"):
         """
         核心方法，传入脚本和并发数进行性能测试。
         :param script_file: 脚本文件，如"/tmp/PTA/scripts/demo/hello_world.py"、"D:\PTA\scripts\demo\hello_world.py"
-        :param vuser_number: 并发数，正整数，不超过1000（保护客户机安全起见）
+        :param grinder_threads: 并发数，正整数，不超过1000（保护客户机安全起见）
+        :param grinder_duration: 每个测试执行时长，单位为秒
+        :param grinder_runs: 每个线程执行次数
         :param lib_dir: 依赖Jar的目录，如"/tmp/PTA/lib"、、"D:\PTA\lib"，可不传，默认为空
         :return:
         """
-        self._update_grinder_properties_file(script_file, vuser_number)
+        self._check_and_prepare()
+        self._update_grinder_properties_file(script_file, grinder_threads=grinder_threads,
+                                             grinder_duration=grinder_duration, grinder_runs=grinder_runs)
         # 检查依赖Jar目录是否存在，不存在后续使用时不影响
         lib_dir = lib_dir.strip()
         if lib_dir:
@@ -131,7 +154,6 @@ class PTACore(object):
         else:
             logging.error("This platform is not supported! [%s]" % os.name)
             sys.exit(1)
-        logging.info("-------%s-------" % script_file)
         # 构造CLASSPATH
         classpath = '".' + split_symbol
         script_dir = os.path.abspath(os.path.dirname(script_file))
@@ -151,7 +173,7 @@ class PTACore(object):
         else:
             logging.error("This platform is not supported! [%s]" % os.name)
             sys.exit(1)
-        logging.info("cmd: %s" % cmd)
+        logging.debug("cmd: %s" % cmd)
         work_dir = os.getcwd()
         os.chdir(script_dir)
         os.system(cmd)
@@ -164,23 +186,28 @@ class PTACore(object):
         # 将Grinder产生的运行日志重命名，增加脚本名作前缀标识符
         hostname = socket.gethostname()
         log_file_prefix = os.path.splitext(os.path.basename(script_file))[0]
-        grinder_data_log_file = script_dir + os.sep + "log" + os.sep + hostname + "-0-data.log"
-        grinder_main_log_file = script_dir + os.sep + "log" + os.sep + hostname + "-0.log"
+        grinder_data_log_file = self.process_log_dir + os.sep + hostname + "-0-data.log"
+        grinder_main_log_file = self.process_log_dir + os.sep + hostname + "-0.log"
         for grinder_log_file in [grinder_data_log_file, grinder_main_log_file]:
             if os.path.exists(grinder_log_file):
-                grinder_log_dir_name = os.path.dirname(grinder_log_file)
                 grinder_log_base_name = os.path.basename(grinder_log_file)
                 grinder_log_base_name_new = log_file_prefix + "-" + grinder_log_base_name
-                shutil.move(grinder_log_file, grinder_log_dir_name + os.sep + grinder_log_base_name_new)
+                grinder_log_base_name_new = grinder_log_base_name_new.replace("-" + hostname + "-0", "")
+                # 将主日志文件名后面加-main标记，便于后续判断是否主日志
+                if not grinder_log_base_name_new.endswith("-data.log"):
+                    grinder_log_base_name_new = os.path.splitext(grinder_log_base_name_new)[0] + "-main.log"
+                shutil.move(grinder_log_file, self.process_log_dir + os.sep + grinder_log_base_name_new)
             else:
                 logging.warn("No such grinder log file! [%s]" % grinder_log_file)
+        logging.info("The testing for %s is completed." % log_file_prefix)
 
 
 def test():
-    pta_core = PTACore("java", "C:\grinder-3.11", "C:\grinder-3.11\examples\grinder.properties")
-    pta_core.perform("F:\caojl-log\java\call_java_method_test.py", 3, "F:\caojl-log\lib")
+    pta_core = PTACore("java", "grinder-3.11", "grinder.properties", "log/process_log")
+    script_file = "scripts/java/call_java_method_test.py"
+    pta_core.perform(script_file, grinder_threads=1, grinder_duration=10, grinder_runs=3, lib_dir="")
 
 
 if __name__ == "__main__":
-    # test()
+    test()
     pass

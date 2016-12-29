@@ -16,7 +16,7 @@ from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 
 
-def mail(receiver_list, subject, content, image_list=[], sender="system", _subtype="plain"):
+def mail(receiver_list, subject, content, image_list=[], sender="pta_system@pta.server.org", _subtype="html"):
     """
     发送带附件的邮件
     :param receiver_list: 收件人列表，列表格式

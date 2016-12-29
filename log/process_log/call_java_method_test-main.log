@@ -1,0 +1,54 @@
+2016-12-29 18:51:53,490 INFO  HIH-L-1603-0 : The Grinder version 3.11
+2016-12-29 18:51:53,495 INFO  HIH-L-1603-0 : Java(TM) SE Runtime Environment 1.7.0_79-b15: Java HotSpot(TM) 64-Bit Server VM (24.79-b02, mixed mode) on Windows 7 amd64 6.1
+2016-12-29 18:51:53,499 INFO  HIH-L-1603-0 : time zone is CST (+0800)
+2016-12-29 18:51:53,579 INFO  HIH-L-1603-0 : worker process 0
+2016-12-29 18:51:53,630 INFO  HIH-L-1603-0 : instrumentation agents: byte code transforming instrumenter for Jython 2.5; byte code transforming instrumenter for Java
+2016-12-29 18:51:56,538 INFO  HIH-L-1603-0 : running "call_java_method_test.py" using Jython 2.5.3 (2.5:c56500f08d34+, Aug 13 2012, 14:54:35) 
+[Java HotSpot(TM) 64-Bit Server VM (Oracle Corporation)]
+2016-12-29 18:51:56,561 INFO  HIH-L-1603-0 thread-2: starting, will do 100 runs
+2016-12-29 18:51:56,561 INFO  HIH-L-1603-0 thread-6: starting, will do 100 runs
+2016-12-29 18:51:56,562 INFO  HIH-L-1603-0 thread-0: starting, will do 100 runs
+2016-12-29 18:51:56,562 INFO  HIH-L-1603-0 thread-4: starting, will do 100 runs
+2016-12-29 18:51:56,562 INFO  HIH-L-1603-0 thread-8: starting, will do 100 runs
+2016-12-29 18:51:56,563 INFO  HIH-L-1603-0 thread-1: starting, will do 100 runs
+2016-12-29 18:51:56,563 INFO  HIH-L-1603-0 thread-5: starting, will do 100 runs
+2016-12-29 18:51:56,563 INFO  HIH-L-1603-0 thread-9: starting, will do 100 runs
+2016-12-29 18:51:56,564 INFO  HIH-L-1603-0 thread-3: starting, will do 100 runs
+2016-12-29 18:51:56,564 INFO  HIH-L-1603-0 thread-7: starting, will do 100 runs
+2016-12-29 18:51:56,564 INFO  HIH-L-1603-0 : start time is 1483008716564 ms since Epoch
+2016-12-29 18:51:56,568 INFO  HIH-L-1603-0 thread-7 [ run-0 ]: sleeping for 700 ms
+2016-12-29 18:51:56,568 INFO  HIH-L-1603-0 thread-3 [ run-0 ]: sleeping for 300 ms
+2016-12-29 18:51:56,569 INFO  HIH-L-1603-0 thread-9 [ run-0 ]: sleeping for 900 ms
+2016-12-29 18:51:56,569 INFO  HIH-L-1603-0 thread-5 [ run-0 ]: sleeping for 500 ms
+2016-12-29 18:51:56,569 INFO  HIH-L-1603-0 thread-8 [ run-0 ]: sleeping for 800 ms
+2016-12-29 18:51:56,569 INFO  HIH-L-1603-0 thread-1 [ run-0 ]: sleeping for 100 ms
+2016-12-29 18:51:56,569 INFO  HIH-L-1603-0 thread-4 [ run-0 ]: sleeping for 400 ms
+2016-12-29 18:51:56,575 INFO  HIH-L-1603-0 thread-6 [ run-0 ]: sleeping for 600 ms
+2016-12-29 18:51:56,575 INFO  HIH-L-1603-0 thread-2 [ run-0 ]: sleeping for 200 ms
+2016-12-29 18:52:05,659 INFO  HIH-L-1603-0 thread-0: finished 100 runs
+2016-12-29 18:52:05,689 INFO  HIH-L-1603-0 thread-1: finished 100 runs
+2016-12-29 18:52:05,966 INFO  HIH-L-1603-0 thread-2: finished 100 runs
+2016-12-29 18:52:05,997 INFO  HIH-L-1603-0 thread-5: finished 100 runs
+2016-12-29 18:52:06,029 INFO  HIH-L-1603-0 thread-4: finished 100 runs
+2016-12-29 18:52:06,105 INFO  HIH-L-1603-0 thread-3: finished 100 runs
+2016-12-29 18:52:06,394 INFO  HIH-L-1603-0 thread-7: finished 100 runs
+2016-12-29 18:52:06,397 INFO  HIH-L-1603-0 thread-6: finished 100 runs
+2016-12-29 18:52:06,575 INFO  HIH-L-1603-0 thread-8: finished 100 runs
+2016-12-29 18:52:06,815 INFO  HIH-L-1603-0 thread-9: finished 100 runs
+2016-12-29 18:52:06,815 INFO  HIH-L-1603-0 : elapsed time is 10252 ms
+2016-12-29 18:52:06,815 INFO  HIH-L-1603-0 : Final statistics for this process:
+2016-12-29 18:52:06,822 INFO  HIH-L-1603-0 : 
+             Tests        Errors       Mean Test    Test Time    TPS          
+                                       Time (ms)    Standard                  
+                                                    Deviation                 
+                                                    (ms)                      
+
+Test 1       1000         0            91.17        12.19        97.54         "call_java_method_test"
+
+Totals       1000         0            91.17        12.19        97.54        
+
+  Tests resulting in error only contribute to the Errors column.          
+  Statistics for individual tests can be found in the data file, including
+  (possibly incomplete) statistics for erroneous tests. Composite tests   
+  are marked with () and not included in the totals.                      
+
