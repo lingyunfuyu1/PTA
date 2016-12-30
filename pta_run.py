@@ -2,7 +2,8 @@
 # coding:utf-8
 
 """
-Created on 2016年11月23日
+Created on 20161123
+Updated on 20161230
 
 @author: hzcaojianglong
 """
@@ -25,23 +26,6 @@ formatter = logging.Formatter("[%(levelname)s]  PID-%(process)d  %(funcName)s - 
 console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
 
-
-def work1(java_path, grinder_home, grinder_properties_file, log_dir, lib_dir, task_list):
-    # 初始化实例
-    pta_core = PTACore(java_path, grinder_home, grinder_properties_file, log_dir)
-
-    # 准备测试任务，格式为"脚本|并发数|测试时间|测试次数"，串行执行测试
-    for index in range(len(task_list)):
-        try:
-            script_file = task_list[index].split("|")[0]
-            grinder_threads = task_list[index].split("|")[1]
-            grinder_duration = task_list[index].split("|")[2]
-            grinder_runs = task_list[index].split("|")[3]
-            logging.info("Task %d: script_file=%s, grinder_threads=%s, grinder_duration=%s(s), grinder_runs=%s" % (
-                index + 1, script_file, grinder_threads, grinder_duration, grinder_runs))
-            pta_core.perform(script_file, grinder_threads, grinder_duration, grinder_runs, lib_dir)
-        except Exception as e:
-            logging.exception("Exception occurred when performing task! [%s]" % task_list[index])
 
 # 日志目录
 log_dir = "log"
@@ -69,13 +53,16 @@ def work1():
     # 执行测试任务
     if not task_list:
         logging.error("No tasks! Please check the task file. [%s]" % task_file)
+    count = 0
     for task in task_list:
         try:
+            count += 1
             tmp = task.split("|")
             script_file = tmp[0].strip()
             grinder_threads = tmp[1].strip()
             grinder_duration = tmp[2].strip()
             grinder_runs = tmp[3].strip()
+            logging.info("[Task-%d: %s] Performing testing..." % (count, script_file))
             pta_core.perform(script_file, grinder_threads, grinder_duration, grinder_runs)
         except Exception as e:
             logging.exception("Exception occurred when performing task! [%s]" % task)
@@ -84,16 +71,19 @@ def work1():
 def work2():
     # #######日志处理生成报告#######
     # 测试执行完成后开始提取测试数据
+    logging.info("Collecting testing result...")
     result_dict_list = pta_report.get_testing_result_batch(process_log_dir)
     # 生成html表格测试报告
+    logging.info("Generating html report...")
     pta_report.generate_html_report(result_dict_list, process_log_dir, html_report_file_name)
     # 绘制Time-TPS/RT曲线图
+    logging.info("Drawing charts...")
     pta_report.draw_chart(result_dict_list, process_log_dir)
 
 
 def work3():
     # #######发送邮件#######
-    mail_receiver_list = ["caojl01@gmail.com", ]
+    mail_receiver_list = ["caojl01@gmail.com", "hzcaojianglong@corp.netease.com", ]
     mail_subject = u"性能测试自动化执行报告"
     # 邮件正文
     content = open(process_log_dir + os.sep + html_report_file_name).read()
@@ -101,6 +91,7 @@ def work3():
     image_list = [process_log_dir + os.sep + temp for temp in os.listdir(process_log_dir) if temp.endswith(".png")]
     image_list.sort()
     # 发送邮件
+    logging.info("Sending email to %s" % str(mail_receiver_list))
     pta_mail.mail(mail_receiver_list, mail_subject, content, image_list=image_list)
 
 

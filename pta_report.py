@@ -3,7 +3,7 @@
 
 """
 Created on 20161208
-Updated on 20161228
+Updated on 20161230
 
 @author: hzcaojianglong
 """
@@ -144,8 +144,11 @@ def _get_testing_result(grinder_main_log_file, grinder_data_log_file):
     # 风险判断，判断主日志和数据日志是否配套
     if os.path.abspath(grinder_main_log_file.replace("-main.log", "-data.log")) != os.path.abspath(
             grinder_data_log_file):
-        logging.warn("The grinder_main_log_file and the grinder_data_log_file do not match! ")
-        exit(1)
+        message_info = "The grinder_main_log_file and the grinder_data_log_file do not match!"
+        params_info = "[grinder_main_log_file=%s, grinder_data_log_file=%s]" % (
+            grinder_main_log_file, grinder_data_log_file)
+        logging.error(message_info + " " + params_info)
+        return {}
 
     # 提取主日志中的结果数据，保存到字典result_dict_main
     result_dict_main = _get_testing_result_main(grinder_main_log_file)
@@ -164,26 +167,35 @@ def _get_testing_result(grinder_main_log_file, grinder_data_log_file):
     result_dict.update(result_dict_data)
     result_dict.update(result_dict_additional)
 
+    test_case_name = result_dict.get("test_case_name")
     # 计算测试次数
     success_number = result_dict.get("success_number")
     failure_number = result_dict.get("failure_number")
     if success_number == "-" or failure_number == "-":
-        logging.warn("Failed to calculate the value of test_number! [%s]" % result_dict["test_case_name"])
+        message_info = "Required parameter missing! Failed to calculate test_number!"
+        params_info = "[test_case_name=%s, success_number=%s, failure_number=%s]" % (
+            test_case_name, success_number, failure_number)
+        logging.warn(message_info + " " + params_info)
     else:
         test_number = str(int(success_number) + int(failure_number))
         result_dict["test_number"] = test_number
     # 计算失败率
     test_number = result_dict.get("test_number")
     if test_number == "-" or test_number == "0":
-        logging.warn("Failed to calculate the value of failure_rate! [%s]" % result_dict["test_case_name"])
+        message_info = "Required parameter missing! Failed to calculate failure_rate!"
+        params_info = "[test_case_name=%s, failure_number=%s, test_number=%s]" % (
+            test_case_name, failure_number, test_number)
+        logging.warn(message_info + " " + params_info)
     else:
         failure_rate = str(int(failure_number) / float(test_number) * 100)[0:5] + "%"
         result_dict["failure_rate"] = failure_rate
     # 计算50%、90%、99%的响应时间
     test_time_list = result_dict["test_time_list"]
     if test_time_list == "-":
-        logging.warn("Failed to calculate the value of 50percentRT、90percentRT、99percentRT! [%s]" % result_dict[
-            "test_case_name"])
+        message_info = "Required parameter missing! Failed to calculate 50percentRT、90percentRT、99percentRT!"
+        params_info = "[test_case_name=%s, time_since_list=%s]" % (
+            result_dict["test_case_name"], result_dict["time_since_list"])
+        logging.warn(message_info + " " + params_info)
     else:
         # 此段代码慎改，建议用少量数据边测试边修改
         test_time_list_sorted = sorted(result_dict["test_time_list"])
@@ -198,7 +210,10 @@ def _get_testing_result(grinder_main_log_file, grinder_data_log_file):
     virtual_user_number = result_dict["virtual_user_number"]
     time_since_list = result_dict["time_since_list"]
     if virtual_user_number == "-" or time_since_list == "-":
-        logging.warn("Failed to calculate the value of MRT_list、TPS_list! [%s]" % result_dict["test_case_name"])
+        message_info = "Required parameter missing! Failed to calculate MRT_list、TPS_list!"
+        params_info = "[test_case_name=%s, virtual_user_number=%s, time_since_list=%s]" % (
+            result_dict["test_case_name"], result_dict["virtual_user_number"], result_dict["time_since_list"])
+        logging.warn(message_info + " " + params_info)
     else:
         mrt_this_second_list = []
         tps_this_second_list = []
@@ -243,7 +258,7 @@ def get_testing_result_batch(process_log_dir):
     grinder_main_log_file_list = [process_log_dir + os.sep + temp for temp in os.listdir(process_log_dir) if
                                   temp.endswith("-main.log")]
     if not grinder_main_log_file_list:
-        logging.error("No grinder_main_log file in this directory! [%s]" % grinder_log_dir)
+        logging.error("No grinder_main_log file in this directory! [%s]" % process_log_dir)
         sys.exit(1)
     result_dict_list = []
     grinder_main_log_file_list.sort()
@@ -287,7 +302,7 @@ def generate_html_report(result_dict_list, grinder_log_dir, html_report_file_nam
             td_content += "<td>%s</td>" % result_dict["failure_rate"]
             td_content += "</tr>"
         except Exception, e:
-            logging.exception("Exception occurred when generating html report!")
+            logging.exception("Exception occurred when generating html report![%s]" % result_dict["test_case_name"])
     html_page = '<html><head><meta http-equiv="Content-Type" content="text/html";charset="utf-8"></head>'
     html_page += '<body><table border="1"><h3>性能测试结果如下：</h3><p/>%s</table>' % td_content
     time_now = time.strftime("%Y-%m-%d %X", time.localtime(time.time()))
@@ -308,21 +323,33 @@ def draw_chart(result_dict_list, grinder_log_dir):
         sys.exit(1)
     for result_dict in result_dict_list:
         try:
+            test_case_name = result_dict["test_case_name"]
+            mrt = result_dict.get("mrt")
+            tps = result_dict.get("tps")
+            # MRT或者TPS为空时，测试失败，不绘制
+            if "-" in [mrt, tps]:
+                message_info = "Test failed! No need to draw the chart!"
+                params_info = "[test_case_name=%s, mrt=%s, tps=%s]" % (test_case_name, mrt, tps)
+                logging.error(message_info + " " + params_info)
+                continue
+            # 时间点列、MRT点列、TPS点列为空时，无法绘制折线图
             time_since_unique_list = result_dict.get("time_since_unique_list")
             mrt_this_second_list = result_dict.get("mrt_this_second_list")
             tps_this_second_list = result_dict.get("tps_this_second_list")
-            mrt = result_dict.get("mrt")
-            tps = result_dict.get("tps")
             if "-" in [time_since_unique_list, mrt_this_second_list, tps_this_second_list, mrt, tps]:
-                logging.error("Some params are None! Unable to draw a line! [%s]" % result_dict.get("test_case_name"))
+                message_info = "Required parameter missing! Failed to draw the chart!"
+                params_info = "[test_case_name=%s, time_since_unique_list=%s, mrt_this_second_list=%s, tps_this_second_list=%s]" % (
+                    test_case_name, time_since_unique_list, mrt_this_second_list, tps_this_second_list)
+                logging.error(message_info + " " + params_info)
                 continue
-            # 列表里只有一个元素（即一个点）的时候无法画线
-            if len(mrt_this_second_list) <= 1:
-                logging.error(
-                    "Only one point! Unable to draw a line! [%s]" % result_dict.get("test_case_name"))
+            # 点列只有一个元素（即一个点）的时，无法绘制折线图，三个列表长度必然相等，这里只判断一个即可
+            if len(time_since_unique_list) == 1:
+                message_info = "Only one point! Failed to draw the chart!"
+                params_info = "[test_case_name=%s, len(time_since_unique_list)=%d]" % (
+                    test_case_name, len(time_since_unique_list))
+                logging.error(message_info + " " + params_info)
                 continue
             # 画折线图
-            test_case_name = result_dict.get("test_case_name")
             figure = pyplot.figure()
             # 设置标题
             pyplot.title("Time-TPS/RT <TestCase: " + test_case_name + ">")
@@ -336,13 +363,14 @@ def draw_chart(result_dict_list, grinder_log_dir):
             ax1.set_ylabel("RT  (Response Time in ms)")
             ax2.set_ylabel("TPS  (Transactions Per Second)")
             # 设置坐标轴
-            mrt = math.ceil(float(result_dict.get("mrt")))
-            tps = math.ceil(float(result_dict.get("tps")))
-            max_mrt = math.ceil(int(max(result_dict.get("mrt_this_second_list"))))
-            max_tps = math.ceil(int(max(result_dict.get("tps_this_second_list"))))
+            # mrt = math.ceil(float(result_dict.get("mrt")))
+            # tps = math.ceil(float(result_dict.get("tps")))
+            max_mrt = math.ceil(int(max(mrt_this_second_list)))
+            max_tps = math.ceil(int(max(tps_this_second_list)))
             # 计算坐标轴最大值和刻度，刻度值为5、50、500的倍数
             # TODO: 这里试行方案，需详细考证
-            y_mrt = int(max(2.0 * mrt, max_mrt))
+            # y_mrt = int(max(2.0 * mrt, max_mrt))
+            y_mrt = int(1.5 * max_mrt)
             for scale in [1000, 100, 10, 1]:
                 if scale == 1:
                     ax1.set_yticks(np.linspace(0, y_mrt, y_mrt + 1))
@@ -351,7 +379,8 @@ def draw_chart(result_dict_list, grinder_log_dir):
                     y_mrt = (y_mrt / (scale / 2) + 1) * (scale / 2)
                     ax1.set_yticks(np.linspace(0, y_mrt, y_mrt / (scale / 2) + 1))
                     break
-            y_tps = int(max(2.0 * tps, max_tps))
+            # y_tps = int(max(2.0 * tps, max_tps))
+            y_tps = int(1.5 * max_tps)
             ax1.legend(['$RT(time)$'], loc='upper left')
             for scale in [1000, 100, 10, 1]:
                 if scale == 1:
@@ -367,16 +396,18 @@ def draw_chart(result_dict_list, grinder_log_dir):
             # 清空，避免影响下次
             pyplot.cla()
         except Exception, e:
-            logging.exception("Exception occurred when drawing chart!")
+            logging.exception("Exception occurred when drawing chart! [%s]" % test_case_name)
 
 
 def test():
-    """单元测试"""
-    log_dir = "log"
-    process_log_dir = log_dir + os.sep + "process_log"
-    result_dict_list = get_testing_result_batch(process_log_dir)
+    # 设置相关参数，主要是PTA过程日志目录和html报告文件名
+    process_log_dir = "log" + os.sep + "process_log"
     html_report_file_name = "performance_testing.html"
-    generate_html_report(result_dict_list, process_log_dir, html_report_file_name)
+    # 提取测试结果数据
+    result_dict_list = get_testing_result_batch(process_log_dir)
+    # 生成html报告
+    generate_html_report(result_dict_list, process_log_dir, html_report_file_name=html_report_file_name)
+    # 绘制图表
     draw_chart(result_dict_list, process_log_dir)
 
 

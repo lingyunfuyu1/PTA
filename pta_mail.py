@@ -62,17 +62,17 @@ def mail(receiver_list, subject, content, image_list=[], sender="pta_system@pta.
 
 
 def test():
-    log_dir = "log"
-    process_log_dir = log_dir + os.sep + "process_log"
+    # 邮件正文
+    process_log_dir = "log" + os.sep + "process_log"
     html_report_file_name = "performance_testing.html"
-    receiver_list = ["caojl01@gmail.com", "hzcaojianglong@corp.netease.com"]
-    # 发送邮件报告，内容为html格式报告，附件为过程日志目录
-    subject = u"性能测试自动化报告"
     content = open(process_log_dir + os.sep + html_report_file_name).read()
+    # 邮件图片列表
     image_list = [process_log_dir + os.sep + temp for temp in os.listdir(process_log_dir) if temp.endswith(".png")]
-    sender = "pta_system@pta.server.163.org"
-    _subtype = "html"
-    mail(receiver_list, subject, content, image_list, sender=sender, _subtype=_subtype)
+    image_list.sort()
+    # 发送邮件
+    mail_receiver_list = ["caojl01@gmail.com", ]
+    mail_subject = u"性能测试自动化执行报告"
+    mail(mail_receiver_list, mail_subject, content, image_list=image_list)
 
 
 if __name__ == "__main__":

@@ -2,13 +2,13 @@
 # coding:utf-8
 
 """
-Created on 2016年11月23日
+Created on 20161123
+Updated on 20161230
 
 @author: hzcaojianglong
 """
 import logging
 import os
-import re
 import socket
 import sys
 
@@ -55,7 +55,7 @@ class PTACore(object):
         # 检查Grinder是否可用
         if not os.path.exists(self.grinder_home + os.sep + "lib" + os.sep + "grinder.jar"):
             logging.error("No such directory! [%s]" % self.grinder_home)
-            sys.exit(2)
+            sys.exit(1)
         else:
             self.grinder_home = os.path.abspath(self.grinder_home)
         # grinder_properties_file需要转换为绝对路径
@@ -81,39 +81,43 @@ class PTACore(object):
         script_file = script_file.strip()
         if not os.path.exists(script_file):
             logging.error("No such file! [%s]" % script_file)
-            sys.exit(4)
+            sys.exit(1)
         else:
             script_file = os.path.abspath(script_file)
         # 检查属性值是否合理
-        for value in [grinder_threads, grinder_duration, grinder_runs]:
+        properties_dict = {
+            "grinder_threads": grinder_threads,
+            "grinder_duration": grinder_duration,
+            "grinder_runs": grinder_runs,
+        }
+        for key, value in properties_dict.items():
             if not isinstance(value, int) and not isinstance(value, str):
-                logging.error("Not a valid string or integer! [%s]" % value)
+                logging.error("Not a valid string or integer! [%s=%s]" % (key, value))
                 sys.exit(1)
             if isinstance(value, str):
                 value = value.strip()
                 if not value.isdigit():
-                    logging.error("It's not a positive integer! [%s]" % value)
+                    logging.error("It's not a positive integer! [%s=%s]" % (key, value))
                     sys.exit(1)
             if int(value) < 0:
                 logging.error(
-                    "The value should not be less than 0! [%s]" % value)
+                    "The value should not be less than 0! [%s=%s]" % (key, value))
                 sys.exit(1)
         if int(grinder_threads) == 0:
             logging.error(
-                "The value of grinder_threads should be 0! [%d]" % int(grinder_threads))
+                "The value of grinder_threads should be 0! [grinder_threads=%d]" % int(grinder_threads))
             sys.exit(1)
         if int(grinder_threads) > 1000:
             logging.error(
-                "The value of grinder_threads should be <= 1000! [%d]" % int(grinder_threads))
+                "The value of grinder_threads should be <= 1000! [grinder_threads=%d]" % int(grinder_threads))
             sys.exit(1)
         if int(grinder_duration) == 0 and int(grinder_runs) == 0:
-            logging.error(
-                "The values of grinder_duration and grinder_runs should not be 0 simultaneously! [%d]" % int(
-                    grinder_threads))
+            message_info = "The values of grinder_duration and grinder_runs should not be 0 simultaneously!"
+            params_info = "[grinder_duration=%s, grinder_runs=%s]" % (grinder_duration, grinder_runs)
+            logging.error(message_info + " " + params_info)
             sys.exit(1)
-        logging.info("Task: --------------%s--------------" % script_file)
-        logging.info("\ngrinder_threads = %s\ngrinder_duration = %s(s)\ngrinder_runs = %s" % (
-            grinder_threads, grinder_duration, grinder_runs))
+        logging.info("\nscript_file = %s\ngrinder_threads = %s\ngrinder_duration = %s(s)\ngrinder_runs = %s" % (
+            script_file, grinder_threads, grinder_duration, grinder_runs))
         # 生成grinder.properties
         result_file = open(self.grinder_properties_file, 'w')
         result_file.write("grinder.useConsole = false\n")
@@ -205,7 +209,7 @@ class PTACore(object):
 def test():
     pta_core = PTACore("java", "grinder-3.11", "grinder.properties", "log/process_log")
     script_file = "scripts/java/call_java_method_test.py"
-    pta_core.perform(script_file, grinder_threads=1, grinder_duration=10, grinder_runs=3, lib_dir="")
+    pta_core.perform(script_file, grinder_threads=1, grinder_duration=0, grinder_runs=1, lib_dir="")
 
 
 if __name__ == "__main__":
