@@ -282,13 +282,16 @@ def generate_html_report(result_dict_list, grinder_log_dir, html_report_file_nam
     :param html_report_file_name: 生成的html报告的文件名
     :return:
     """
-    td_content = "<tr>" + "<td><b>测试用例名称</b></td>" + "<td><b>并发数</b></td>" + "<td><b>TPS</b></td>" + \
+    td_content = "<tr>" + "<td><b>编号</b></td>" + "<td><b>测试用例名称</b></td>" + "<td><b>并发数</b></td>" + "<td><b>TPS</b></td>" + \
                  "<td><b>MRT(ms)</b></td>" + "<td><b>50%RT(ms)</b></td>" + "<td><b>90%RT(ms)</b></td>" + \
                  "<td><b>99%RT(ms)</b></td>" + "<td><b>测试次数</b></td>" + "<td><b>成功次数</b></td>" + \
                  "<td><b>失败次数</b></td>" + "<td><b>失败率</b></td>" + "</tr>"
+    count = 0
     for result_dict in result_dict_list:
         try:
+            count += 1
             td_content += "<tr>"
+            td_content += "<td><b>%s</b></td>" % str(count)
             td_content += "<td><b>%s</b></td>" % result_dict["test_case_name"]
             td_content += "<td>%s</td>" % result_dict["virtual_user_number"]
             td_content += "<td>%s</td>" % result_dict["tps"]
@@ -321,6 +324,7 @@ def draw_chart(result_dict_list, grinder_log_dir):
     if not os.path.exists(grinder_log_dir):
         logging.error("No such directory! [%s]" % grinder_log_dir)
         sys.exit(1)
+    count = 0
     for result_dict in result_dict_list:
         try:
             test_case_name = result_dict["test_case_name"]
@@ -352,15 +356,16 @@ def draw_chart(result_dict_list, grinder_log_dir):
             # 画折线图
             figure = pyplot.figure()
             # 设置标题
-            pyplot.title("Time-TPS/RT <TestCase: " + test_case_name + ">")
+            count += 1
+            pyplot.title("TestCase: " + str(count) + "-" +test_case_name)
             # 网格效果
             pyplot.grid(True)
             ax1 = figure.add_subplot(111)
             pyplot.plot(result_dict.get("time_since_unique_list"), result_dict.get("mrt_this_second_list"), 'r')
             ax2 = ax1.twinx()
             pyplot.plot(result_dict.get("time_since_unique_list"), result_dict.get("tps_this_second_list"), 'g')
-            ax1.set_xlabel("Time Since Starting (in s)")
-            ax1.set_ylabel("RT  (Response Time in ms)")
+            ax1.set_xlabel("Time (Time Since Starting in s)")
+            ax1.set_ylabel("MRT  (Mean Response Time in ms)")
             ax2.set_ylabel("TPS  (Transactions Per Second)")
             # 设置坐标轴
             # mrt = math.ceil(float(result_dict.get("mrt")))
@@ -381,7 +386,7 @@ def draw_chart(result_dict_list, grinder_log_dir):
                     break
             # y_tps = int(max(2.0 * tps, max_tps))
             y_tps = int(1.5 * max_tps)
-            ax1.legend(['$RT(time)$'], loc='upper left')
+            ax1.legend(['$MRT(time)$'], loc='upper left')
             for scale in [1000, 100, 10, 1]:
                 if scale == 1:
                     ax2.set_yticks(np.linspace(0, y_tps, y_tps + 1))

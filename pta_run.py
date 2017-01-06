@@ -83,7 +83,7 @@ def work2():
 
 def work3():
     # #######发送邮件#######
-    mail_receiver_list = ["caojl01@gmail.com", "hzcaojianglong@corp.netease.com", ]
+    mail_receiver_list = ["caojl01@gmail.com", ]
     mail_subject = u"性能测试自动化执行报告"
     # 邮件正文
     content = open(process_log_dir + os.sep + html_report_file_name).read()
